@@ -3003,35 +3003,46 @@ enhanceBassNoteInputs();
 </script>
 
 <script>
-/* v5_37: Prevent iOS Safari double-tap zoom on the on-screen keyboard area (kbdWrap). */
+/* v5_38: Prevent iOS Safari double-tap zoom on the on-screen keyboard area (kbdWrap). */
 (function(){
   function attach(){
     var el = document.getElementById('kbdWrap');
     if(!el) return;
 
-    // CSS fallback for browsers that support touch-action dynamically
+    // CSS hint for browsers that support it
     try { el.style.touchAction = 'manipulation'; } catch(_){}
 
-    var lastTouchEnd = 0;
+    // iOS Safari still double-tap-zooms in some cases; block it on the keyboard area.
+    var lastTapTime = 0;
     var lastX = 0, lastY = 0;
 
-    el.addEventListener('touchend', function(e){
-      // Only care about quick successive taps within a small radius
+    function isNear(x, y){
+      var dx = x - lastX, dy = y - lastY;
+      return (dx*dx + dy*dy) <= (45*45); // radius in *screen* pixels
+    }
+
+    function handleTap(e){
       var now = Date.now();
-      var t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : null;
+      var t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] :
+              (e.touches && e.touches[0]) ? e.touches[0] : null;
       var x = t ? t.clientX : 0;
       var y = t ? t.clientY : 0;
 
-      if (now - lastTouchEnd <= 300) {
-        var dx = x - lastX, dy = y - lastY;
-        if ((dx*dx + dy*dy) <= (30*30)) {
-          // Prevent double-tap zoom
-          e.preventDefault();
-        }
+      // Expanded window catches "slower" double taps too
+      if (now - lastTapTime <= 700 && isNear(x, y)) {
+        e.preventDefault();
+        e.stopPropagation();
+        lastTapTime = 0; // reset so triple taps don't behave oddly
+        return;
       }
-      lastTouchEnd = now;
+
+      lastTapTime = now;
       lastX = x; lastY = y;
-    }, { passive: false });
+    }
+
+    // Catch early (touchstart) and also on touchend for robustness.
+    el.addEventListener('touchstart', handleTap, { passive: false });
+    el.addEventListener('touchend', handleTap, { passive: false });
   }
 
   if (document.readyState === 'loading') {
